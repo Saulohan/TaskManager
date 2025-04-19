@@ -5,6 +5,8 @@ using TaskManager.Domain.Entities;
 using TaskManager.Domain.DTOs;
 using TaskManager.Domain.Mappers;
 using TaskManagerAPI.Utils;
+using TaskManager.Domain.Exceptions;
+using System.Net;
 
 namespace TaskManager.API.Controllers
 {
@@ -15,111 +17,15 @@ namespace TaskManager.API.Controllers
         private readonly TaskManagerContext _context;
         private readonly ProjectRepository _projectRepository;
         private readonly TaskItemRepository _taskItemRepository;
+        private readonly UserRepository _userRepository;
 
-        public ProjectsController(TaskManagerContext context, ProjectRepository projectRepository, TaskItemRepository taskItemRepository)
+        public ProjectsController(TaskManagerContext context, ProjectRepository projectRepository, TaskItemRepository taskItemRepository, UserRepository userRepository)
         {
             _context = context;
             _projectRepository = projectRepository;
             _taskItemRepository = taskItemRepository;
+            _userRepository = userRepository;
         }
-
-        //// GET: Users
-        //[HttpGet]
-        //public async Task<IActionResult> Index()
-        //{
-
-        //    List<User> AllUsers = await _userRepository.GetAllUsers();
-
-        //    if (AllUsers.Count == 0)
-        //        return NotFound();
-
-        //    return Ok(AllUsers.ToDTO());
-        //}
-
-        ////GET: Users/5
-        //[HttpGet("id")]
-        //public async Task<IActionResult> Get(long? id)
-        //{
-        //    if (id == null || id == 0)
-        //        return NotFound("User Not Found");
-
-        //    User user = await _userRepository.GetUserById((long)id);
-
-        //    if (user == null)
-        //        return NotFound("User Not Found");
-
-        //    UserDTO userDTO = user.ToDTO();
-
-        //    return Ok(userDTO);
-        //}
-
-
-        //[HttpPost("Create")]
-        //public async Task<IActionResult> Create([FromServices] IPasswordHasher<User> hasher, [FromBody] CreateUserDTO createUserDTO)
-        //{
-        //    if (!ModelState.IsValid)
-        //        return BadRequest(ModelState);
-
-        //    string validationResult = await new UserValidator(_userRepository).ValidateUser(createUserDTO);
-
-        //    if (!string.IsNullOrEmpty(validationResult))
-        //        return BadRequest(validationResult);
-
-        //    string hashedPassword = hasher.HashPassword(null, createUserDTO.Password);
-
-        //    User user = new()
-        //    {
-        //        Username = createUserDTO.Name,
-        //        PasswordHash = hashedPassword,
-        //        Status = UserStatus.Enabled,
-        //        Type = UserType.Client,
-        //        CreatedAt = DateTime.Now,
-        //        UpdatedAt = DateTime.Now,
-        //        Person = new Person
-        //        {
-        //            Name = createUserDTO.Name,
-        //            Phone = createUserDTO.Phone,
-        //            Email = createUserDTO.Email,
-        //            CreatedAt = DateTime.Now,
-        //            UpdatedAt = DateTime.Now,
-        //        }
-        //    };
-
-        //    _context.User.Add(user);
-
-        //    try
-        //    {
-        //        await _userRepository.AddAsync(user);
-        //        await _context.SaveChangesAsync();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        return StatusCode(500, ex.Message);
-        //    }
-
-        //    return Created($"API/Users/{user.Id}", user.ToDTO());
-        //}
-
-        //[HttpPost("Login")]
-        //public async Task<IActionResult> Login([FromServices] IPasswordHasher<User> hasher, [FromBody] LoginUserDTO loginUserDTO)
-        //{
-        //    if (!ModelState.IsValid)
-        //        return BadRequest(ModelState);
-
-        //    User user = await _userRepository.GetUserByEmail(loginUserDTO.Email);
-
-        //    if (user == null)
-        //        return NotFound("Usuário inválido");
-
-        //    var result = hasher.VerifyHashedPassword(user, user.PasswordHash, loginUserDTO.Password);
-
-        //    if (result == PasswordVerificationResult.Failed)
-        //        return Unauthorized("Senha incorreta");
-
-        //    return Ok();
-        //}
-
-
 
         // GET /projects
         [HttpGet("GetAllProjects")]
@@ -129,15 +35,20 @@ namespace TaskManager.API.Controllers
             {
                 List<Project> projects = await _projectRepository.GetAllProjects();
 
-                if (projects is null || !projects.Any())
-                    return Ok(new { Sucess = false, message = "Nenhum projeto encontrado.", projects = new List<Project>() });         
+                if (!projects.Any())
+                    throw new TmException(message: "Nenhum projeto encontrado.", statusCode: HttpStatusCode.BadRequest);
 
-                return Ok(new { Sucess = false, message = "Projetos recuperados com sucesso.", projects });
+                return Ok(new { Success = true, message = "Projetos recuperados com sucesso.", projects });
+            }
+            catch (TmException ex)
+            {
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(ex.StatusCode), new { Success = false, message = ex.Message });
             }
             catch (Exception ex)
             {
-                Utils.SaveLogError(ex);  // ver se vai ficar ai mesmo.
-                return StatusCode(500, new { Sucess = false, mensagem = $"Houve um erro no sistema: {ex.Message}" });
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(HttpStatusCode.InternalServerError), new { Success = false, message = $"Houve um erro no sistema: {ex.Message}" });
             }
         }
 
@@ -146,23 +57,24 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(createProjectDTO.Title))
-                    return BadRequest(new { Sucess = false, mensagem = "Título do projeto é obrigatório." });
+                User user = await _userRepository.GetUserById(createProjectDTO.UserId.Value)
+                    ?? throw new TmException(message: "Usuário inexistente.", statusCode: HttpStatusCode.BadRequest);
 
-                Project project = ProjectMapper.CreateProjectDTOToProduct(createProjectDTO);
+                Project project = ProjectMapper.CreateProjectDTOToProduct(createProjectDTO, user);
 
                 await _projectRepository.Save(project);
 
-                return Ok(new
-                {
-                    Sucess = true,
-                    mensagem = "Projeto criado com sucesso."
-                });
+                return Ok(new { Success = true, message = "Projeto criado com sucesso." });
+            }
+            catch (TmException ex)
+            {
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(ex.StatusCode), new { Success = false, message = ex.Message });
             }
             catch (Exception ex)
             {
-                Utils.SaveLogError(ex); // ver se vai ficar ai mesmo.
-                return StatusCode(500, new { Sucess = false, mensagem = $"Houve um erro no sistema: {ex.Message}" });
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(HttpStatusCode.InternalServerError), new { Success = false, message = $"Houve um erro no sistema: {ex.Message}" });
             }
         }
 
@@ -171,27 +83,33 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                Project project = await _projectRepository.GetProjectById(projectId);
-
-                if (project is null)
-                    return NotFound(new { Success = false, message = "Projeto não encontrado." });
+                Project project = await _projectRepository.GetProjectById(projectId)
+                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
 
                 List<TaskItem> taskItems = await _taskItemRepository.GetAllTasksByProjectId(projectId);
 
-                if(taskItems.Any() || taskItems is null)//validar qual usar
-                    return NotFound(new { Success = false, message = "Não é possivel remover um projeto com tarefas ativas, finalize as tarefas pendentes antes da remoção." });
+                if(taskItems.Any())
+                    throw new TmException(message: "Não é possivel remover um projeto com tarefas ativas, finalize as tarefas pendentes antes da remoção.", statusCode: HttpStatusCode.BadRequest);
+                
+                User user = await _userRepository.GetUserById(project.User.Id.Value);
 
-                project.DeletedAt = DateTimeOffset.UtcNow;
-                project.UpdatedBy = 0;// adicionar o this
+                project.DeletedAt = DateTime.Now;
+                project.UpdatedAt = DateTime.Now;
+                project.UpdatedBy = user?.Id ?? 1;
 
                 await _projectRepository.DeleteProject(project);
 
                 return Ok(new { Success = true, message = "Projeto excluído com sucesso." });
             }
+            catch (TmException ex)
+            {
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(ex.StatusCode), new { Success = false, message = ex.Message });
+            }
             catch (Exception ex)
             {
-                Utils.SaveLogError(ex); // ver se vai ficar ai mesmo.
-                return StatusCode(500, new { Success = false, message = $"Erro ao tentar excluir o projeto: {ex.Message}" });
+                Utils.SaveLogError(ex);
+                return StatusCode(Convert.ToInt32(HttpStatusCode.InternalServerError), new { Success = false, message = $"Erro ao tentar excluir o projeto: {ex.Message}" });
             }
         }
 

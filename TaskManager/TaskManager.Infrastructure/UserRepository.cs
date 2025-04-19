@@ -1,14 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using TaskManager.Database;
 using TaskManager.Domain.Entities;
 
 namespace TaskManager.Infrastructure;
 
-public partial class Repository
+public partial class UserRepository(TaskManagerContext context)
 {
-    //validar necessidade
-    public async Task<List<User>> GetAllUsers() => await context.User.Select(x => x).Where(x => x.DeletedAt == null).ToListAsync();
-
+    public virtual async Task<List<User>> GetAllUsers() => await context.User.Select(x => x).Where(x => x.DeletedAt == null).ToListAsync();
     
-    public async Task<bool> UserExistsAsync(string username) => await context.User.AnyAsync(user => user.Username == username && user.DeletedAt == null);
-    
+    public virtual async Task<User> GetUserById(long userId) => await context.User.Where(x => x.DeletedAt == null && x.Id == userId).FirstOrDefaultAsync();
 }

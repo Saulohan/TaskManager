@@ -11,7 +11,7 @@ namespace TaskManager.Domain.Mappers
 {
     public static class TaskItemHistoricMapper
     {
-        public static TaskItemHistoric TaskItemToTaskItemHistoric(TaskItem taskItem)
+        public static TaskItemHistoric TaskItemToTaskItemHistoric(TaskItem taskItem, User user)
         {
             return  new TaskItemHistoric
             {
@@ -20,23 +20,24 @@ namespace TaskManager.Domain.Mappers
                 Description = taskItem.Description,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                //CreatedBy = createTaskDTO.User.Id.Value, //Criar KEY
-                //UpdatedBy = createTaskDTO.User.Id.Value //Criar KEY
+                CreatedBy = user.Id.Value,
+                UpdatedBy = user.Id.Value,
+                DeletedAt = taskItem.DeletedAt
             };
         }
 
-        public static TaskItemHistoric MapperCommentsToTaskItemHistoric(TaskItem taskItem, List<TaskComment> taskComments)
+        public static TaskItemHistoric MapperCommentsToTaskItemHistoric(TaskItem taskItem, List<TaskComment> taskComments, User user)
         {
             return  new TaskItemHistoric
             {
                 TaskItem = taskItem,
                 Status = taskItem.Status,
                 Description = taskItem.Description,
-                Comments = string.Join(", ", taskComments.Select(taskComment => taskComment.Id)),
+                Comments = string.Join("; ", taskComments.Select(taskComment => taskComment.Content)),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                //CreatedBy = createTaskDTO.User.Id.Value, //Criar KEY
-                //UpdatedBy = createTaskDTO.User.Id.Value //Criar KEY
+                CreatedBy = user.Id.Value,
+                UpdatedBy = user.Id.Value 
             };
         }
     }

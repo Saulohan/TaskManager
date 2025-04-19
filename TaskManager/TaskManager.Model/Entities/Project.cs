@@ -9,23 +9,22 @@ namespace TaskManager.Domain.Entities
 {
     public class Project : BaseModel
     {
+        public Project() { }
+
+        public Project(string title, string description, DateTime? dueDate, User user)
+        {
+            Title = title;
+            Description = description;
+            DueDate = dueDate;
+            User = user;
+        }
+
         public string Title { get; set; }
 
         public string Description { get; set; }
 
-        // Data de vencimento do projeto (opcional)
         public DateTime? DueDate { get; set; }
 
-        public string Status { get; set; }
-
-        public virtual User User { get; set; }
-
-        public virtual List<TaskItem> Tasks { get; set; } = new List<TaskItem>();
-
-        //public long ProjectId { get; set; }
-
-        //public override long GetId() => ProjectId;
-
-        //public override void SetId(long id) => ProjectId = id;
+        public User User { get; set; }
     }
 }

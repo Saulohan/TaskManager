@@ -11,7 +11,7 @@ namespace TaskManager.Domain.Mappers
 {
     public static class ProjectMapper
     {
-        public static Project CreateProjectDTOToProduct(CreateProjectDTO createProjectDTO)
+        public static Project CreateProjectDTOToProduct(CreateProjectDTO createProjectDTO, User user)
         {
             return createProjectDTO == null
                 ? null
@@ -19,12 +19,12 @@ namespace TaskManager.Domain.Mappers
                 {
                     Title = createProjectDTO.Title,
                     Description = createProjectDTO.Description,
-                    User = createProjectDTO.User,
-                    Status = "CREATEDE", //TROCAR POR ENUM
+                    User = user,
+                    DueDate = Convert.ToDateTime(createProjectDTO.DueDate),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = createProjectDTO.User.Id.Value,
-                    UpdatedBy = createProjectDTO.User.Id.Value
+                    CreatedBy = user.Id.Value,
+                    UpdatedBy = user.Id.Value
                 };
         }
     }

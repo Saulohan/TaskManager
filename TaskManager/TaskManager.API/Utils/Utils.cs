@@ -1,12 +1,19 @@
-﻿namespace TaskManagerAPI.Utils
+﻿using System;
+using System.Net;
+using TaskManager.Database;
+using TaskManager.Domain.Entities;
+using TaskManager.Domain.Exceptions;
+using TaskManager.Domain.Mappers;
+using TaskManager.Infrastructure;
+
+namespace TaskManagerAPI.Utils
 {
     public static class Utils
     {
         public static void SaveLogError(Exception ex)
         {
-            string logFilePath = "logs/error_log.txt"; // Caminho para o arquivo de log
+            string logFilePath = $"logs/{DateTime.Now.ToString("dd-MM-yyyy")}/errorApi_log.txt";
 
-            // Certificar-se de que o diretório existe
             var logDirectory = Path.GetDirectoryName(logFilePath);
             if (!Directory.Exists(logDirectory))
                 Directory.CreateDirectory(logDirectory);
@@ -17,12 +24,10 @@
             {
                 File.AppendAllText(logFilePath, logMessage);
             }
-            catch (Exception fileEx)
+            catch (Exception)
             {
-                Console.WriteLine($"Erro ao tentar registrar log: {fileEx.Message}");
+                return;
             }
-
-            //salvar log na tabela de log do banco de dados
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace TaskManager.Models.Enums;
 
-public enum TaskItemStatus
+public enum TaskItemStatus : byte
 {
     Pending = 0,
     InProgress = 1,

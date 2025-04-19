@@ -6,7 +6,7 @@ namespace TaskManager.Infrastructure;
 
 public partial class TaskItemHistoricRepository(TaskManagerContext context)
 {
-    public async Task Save(TaskItemHistoric taskItemHistoric)
+    public virtual async Task Save(TaskItemHistoric taskItemHistoric)
     {
         if (taskItemHistoric.Id is null)
             await AddtaskItemHistoric(taskItemHistoric);
@@ -16,12 +16,12 @@ public partial class TaskItemHistoricRepository(TaskManagerContext context)
         await context.SaveChangesAsync();
     }
 
-    public async Task AddtaskItemHistoric(TaskItemHistoric taskItemHistoric)
+    public virtual async Task AddtaskItemHistoric(TaskItemHistoric taskItemHistoric)
     {
         await context.TaskItemHistoric.AddAsync(taskItemHistoric);
     } 
 
-    public async Task UpdatetaskItemHistoric(TaskItemHistoric taskItemHistoric)
+    public virtual async Task UpdatetaskItemHistoric(TaskItemHistoric taskItemHistoric)
     {
         context.TaskItemHistoric.Update(taskItemHistoric);
     }

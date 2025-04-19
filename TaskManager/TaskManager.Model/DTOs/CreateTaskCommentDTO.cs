@@ -11,8 +11,10 @@ namespace TaskManager.Domain.DTOs
 {
     public class CreateTaskCommentDTO
     {
+        [Required]
         public string Content { get; set; }
 
-        public TaskItem TaskItem { get; set; }
+        [Required]
+        public long? TaskItemId { get; set; }
     }
 }

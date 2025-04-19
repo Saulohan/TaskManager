@@ -6,13 +6,12 @@ using System.Threading.Tasks;
 using TaskManager.Domain.DTOs;
 using TaskManager.Domain.Entities;
 using TaskManager.Models.Enums;
-using TaskManager.Domain.DTOs;
 
 namespace TaskManager.Domain.Mappers
 {
     public static class TaskItemMapper
     {
-        public static TaskItem CreateTaskDTOToTaskItem(CreateTaskDTO createTaskDTO)
+        public static TaskItem CreateTaskDTOToTaskItem(CreateTaskDTO createTaskDTO, Project project)
         {
             return createTaskDTO == null
                 ? null
@@ -20,28 +19,23 @@ namespace TaskManager.Domain.Mappers
                 {
                     Title = createTaskDTO.Title,
                     Description = createTaskDTO.Description,
-                    DueDate = createTaskDTO.DueDate,
+                    DueDate = Convert.ToDateTime(createTaskDTO.DueDate),
                     Status = TaskItemStatus.InProgress,
-                    TaskItemPriority = createTaskDTO.TaskItemPriority,
+                    TaskItemPriority = createTaskDTO.TaskItemPriority.Value,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    Project = createTaskDTO.Project,
-                    //CreatedBy = createTaskDTO.User.Id.Value, //Criar KEY
-                    //UpdatedBy = createTaskDTO.User.Id.Value //Criar KEY
+                    Project = project,
+                    CreatedBy = project.User.Id.Value, 
+                    UpdatedBy = project.User.Id.Value
                 };
         }
 
-        public static TaskItem UpdateTaskDTOToTaskItem(UpdateTaskDTO updateTaskDTO, TaskItem taskItem)
+        public static TaskItem UpdateTaskDTOToTaskItem(UpdateTaskDTO updateTaskDTO, TaskItem taskItem, Project project)
         {
-            //validar campos para update
-            taskItem.Title = updateTaskDTO.Title;
             taskItem.Description = updateTaskDTO.Description;
-            taskItem.DueDate = updateTaskDTO.DueDate;
-            taskItem.Status = updateTaskDTO.Status;
+            taskItem.Status = (TaskItemStatus)updateTaskDTO.Status;
             taskItem.UpdatedAt = DateTime.UtcNow;
-            taskItem.Project = updateTaskDTO.Project;
-            //CreatedBy = createTaskDTO.User.Id.Value, //Criar KEY
-            //UpdatedBy = createTaskDTO.User.Id.Value //Criar KEY
+            taskItem.UpdatedBy = project.User.Id.Value;
 
             return taskItem;
         }

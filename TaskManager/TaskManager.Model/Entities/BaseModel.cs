@@ -1,14 +1,17 @@
 ﻿namespace TaskManager.Domain.Entities;
 
-public abstract class BaseModel
+public class BaseModel
 {
+    protected BaseModel(){  }
+    protected BaseModel(long id){ Id = id; }
+
     public long? Id { get; set; }
 
-    public virtual DateTimeOffset CreatedAt { get; set; }
+    public virtual DateTime CreatedAt { get; set; }
 
-    public virtual DateTimeOffset? UpdatedAt { get; set; }
+    public virtual DateTime? UpdatedAt { get; set; }
 
-    public virtual DateTimeOffset? DeletedAt { get; set; }
+    public virtual DateTime? DeletedAt { get; set; }
 
     public long CreatedBy { get; set; }
 

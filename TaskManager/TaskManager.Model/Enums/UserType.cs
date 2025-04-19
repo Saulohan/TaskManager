@@ -1,7 +1,7 @@
 ﻿namespace TaskManager.Models.Enums;
 
-public enum UserType
+public enum UserType : byte
 {
-    Manager = 0,
-    Client = 1
+    Client = 0,
+    Manager = 1
 }

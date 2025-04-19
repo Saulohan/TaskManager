@@ -14,16 +14,16 @@ namespace TaskManager.Domain.Mappers
 {
     public static class TaskCommentMapper
     {
-        public static TaskComment MapperTaskComment(CreateTaskCommentDTO createTaskCommentDTO)
+        public static TaskComment MapperTaskComment(CreateTaskCommentDTO createTaskCommentDTO, TaskItem taskItem, User user)
         {
             return new TaskComment
                 {
-                    TaskItem = createTaskCommentDTO.TaskItem,
+                    TaskItem = taskItem,
                     Content = createTaskCommentDTO.Content,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    //CreatedBy = createTaskDTO.User.Id.Value, //Criar KEY
-                    //UpdatedBy = createTaskDTO.User.Id.Value //Criar KEY
+                    CreatedBy = user.Id.Value,
+                    UpdatedBy = user.Id.Value 
                 };
         }
     }
