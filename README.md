@@ -92,3 +92,15 @@ Durante o desenvolvimento do projeto, identifiquei algumas oportunidades de melh
 
 - Documentar todos os endpoints com **Swagger**.
 - Adicionar exemplos de request/response e códigos de erro.
+
+---
+## Fluxograma
+
+- [Link Fluxograma](https://tinyurl.com/5452ksd5)
+
+<br>
+
+ <details>
+  <summary>Link Fluxograma (clique para expandir a imagem)</summary>
+  <img src="https://tinyurl.com/bdrbdhx3" alt="Fluxograma" />
+</details>
