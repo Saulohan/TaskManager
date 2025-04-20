@@ -69,7 +69,7 @@ namespace TaskManager.Application.Services
 
             project.DeletedAt = DateTime.Now;
             project.UpdatedAt = DateTime.Now;
-            project.UpdatedBy = user?.Id ?? 1;
+            project.UpdatedBy = user?.Id;
 
             await _projectRepository.DeleteProject(project);
 

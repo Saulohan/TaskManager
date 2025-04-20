@@ -19,7 +19,7 @@ using TaskManager.API.Services.Interfaces;
 using TaskManager.Application.Services;
 using TaskManager.Domain.Exceptions;
 
-namespace TaskManager.Tests.Controllers
+namespace TaskManager.Tests.Services
 {
     public class ProjectsServiceTests
     {

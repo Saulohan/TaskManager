@@ -22,7 +22,7 @@ using TaskManager.Domain.Exceptions;
 using TaskManager.Application.Services;
 using Microsoft.Build.Evaluation;
 
-namespace TaskManager.Tests.Controllers
+namespace TaskManager.Tests.Services
 {
     public class ReportsServiceTests
     {

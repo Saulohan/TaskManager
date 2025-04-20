@@ -153,7 +153,7 @@ namespace TaskManager.API.Controllers
             catch (Exception ex)
             {
                 Utils.SaveLogError(ex); 
-                return StatusCode(Convert.ToInt32(HttpStatusCode.InternalServerError), new { SucSuccessess = false, message = $"Houve um erro no sistema: {ex.Message}" });
+                return StatusCode(Convert.ToInt32(HttpStatusCode.InternalServerError), new { Success = false, message = $"Houve um erro no sistema: {ex.Message}" });
             }
         }
     }
