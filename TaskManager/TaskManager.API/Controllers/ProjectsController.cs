@@ -7,6 +7,7 @@ using TaskManager.Domain.Mappers;
 using TaskManagerAPI.Utils;
 using TaskManager.Domain.Exceptions;
 using System.Net;
+using TaskManager.API.Services.Interfaces;
 
 namespace TaskManager.API.Controllers
 {
@@ -14,17 +15,12 @@ namespace TaskManager.API.Controllers
     [Route("[controller]")]
     public class ProjectsController : ControllerBase
     {
-        private readonly TaskManagerContext _context;
-        private readonly ProjectRepository _projectRepository;
-        private readonly TaskItemRepository _taskItemRepository;
-        private readonly UserRepository _userRepository;
 
-        public ProjectsController(TaskManagerContext context, ProjectRepository projectRepository, TaskItemRepository taskItemRepository, UserRepository userRepository)
+        private readonly IProjectsService _projectsService;
+
+        public ProjectsController(IProjectsService projectsService)
         {
-            _context = context;
-            _projectRepository = projectRepository;
-            _taskItemRepository = taskItemRepository;
-            _userRepository = userRepository;
+            _projectsService = projectsService;
         }
 
         // GET /projects
@@ -33,12 +29,14 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                List<Project> projects = await _projectRepository.GetAllProjects();
+                ProjectResponseDTO result = await _projectsService.GetAllProjects();
 
-                if (!projects.Any())
-                    throw new TmException(message: "Nenhum projeto encontrado.", statusCode: HttpStatusCode.BadRequest);
-
-                return Ok(new { Success = true, message = "Projetos recuperados com sucesso.", projects });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message,
+                    Projects = result.Projects
+                });
             }
             catch (TmException ex)
             {
@@ -57,14 +55,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                User user = await _userRepository.GetUserById(createProjectDTO.UserId.Value)
-                    ?? throw new TmException(message: "Usuário inexistente.", statusCode: HttpStatusCode.BadRequest);
+                ProjectResponseDTO result = await _projectsService.CreateProject(createProjectDTO);
 
-                Project project = ProjectMapper.CreateProjectDTOToProduct(createProjectDTO, user);
-
-                await _projectRepository.Save(project);
-
-                return Ok(new { Success = true, message = "Projeto criado com sucesso." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {
@@ -83,23 +80,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                Project project = await _projectRepository.GetProjectById(projectId)
-                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
+                ProjectResponseDTO result = await _projectsService.DeleteProject(projectId);
 
-                List<TaskItem> taskItems = await _taskItemRepository.GetAllTasksByProjectId(projectId);
-
-                if(taskItems.Any())
-                    throw new TmException(message: "Não é possivel remover um projeto com tarefas ativas, finalize as tarefas pendentes antes da remoção.", statusCode: HttpStatusCode.BadRequest);
-                
-                User user = await _userRepository.GetUserById(project.User.Id.Value);
-
-                project.DeletedAt = DateTime.Now;
-                project.UpdatedAt = DateTime.Now;
-                project.UpdatedBy = user?.Id ?? 1;
-
-                await _projectRepository.DeleteProject(project);
-
-                return Ok(new { Success = true, message = "Projeto excluído com sucesso." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {

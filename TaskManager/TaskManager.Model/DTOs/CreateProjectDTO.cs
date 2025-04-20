@@ -17,7 +17,7 @@ namespace TaskManager.Domain.DTOs
         public string Description { get; set; }
 
         [Required]
-        [RegularExpression(@"^\d{2}-\d{2}-\d{4}$", ErrorMessage = "Data inválida. O formato correto é yyyy-MM-dd.")]
+        [RegularExpression(@"^\d{2}-\d{2}-\d{4}$", ErrorMessage = "Data inválida. O formato correto é dd-MM-yyyy.")]
         public string DueDate { get; set; }
 
         [Required]

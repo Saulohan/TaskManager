@@ -14,16 +14,18 @@ using TaskManagerAPI.Utils;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Tests.Domain.Responses;
 using Newtonsoft.Json;
+using TaskManager.API.Services.Interfaces;
+using TaskManager.Domain.DTOs;
+using TaskManager.Domain.Mappers;
+using Microsoft.CodeAnalysis;
+using TaskManager.Domain.Exceptions;
 
 namespace TaskManager.Tests.Controllers
 {
     public class ReportsControllerTests
     {
         private readonly ReportsController _controller;
-        private readonly TaskManagerContext _context;
-        private readonly Mock<TaskItemRepository> _taskItemRepoMock;
-        private readonly Mock<UserRepository> _userRepoMock;
-        private readonly Mock<ConfigHelper> _configHelperMock;
+        private readonly Mock<IReportsService> _reportsService;
 
         public ReportsControllerTests()
         {
@@ -31,18 +33,10 @@ namespace TaskManager.Tests.Controllers
                 .UseInMemoryDatabase("TestDatabase")
                 .Options;
 
-            _context = new TaskManagerContext(options);
-
-            _taskItemRepoMock = new Mock<TaskItemRepository>(_context);
-            _userRepoMock = new Mock<UserRepository>(_context);
-            _configHelperMock = new Mock<ConfigHelper>();
-            _configHelperMock.Setup(x => x.NumberOfDaysToReport).Returns(30);
+            _reportsService = new Mock<IReportsService>();
 
             _controller = new ReportsController(
-                _context,
-                _taskItemRepoMock.Object,
-                _userRepoMock.Object,
-                _configHelperMock.Object
+                _reportsService.Object
             );
         }
 
@@ -51,16 +45,29 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long userId = 1;
-            User user = new User { Id = userId, Type = UserType.Client }; // Cliente (não é Manager)
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync(user);
+            ReportsResponseDTO responseDTO = new ReportsResponseDTO
+            {
+                Success = true,
+                AverageTasksByUser = 0.663,
+                StatusCode = HttpStatusCode.OK,
+                TaskCompleted = new List<TaskItem> { new TaskItem() }
+            };
+
+            _reportsService.Setup(service => service.GetAverageCompletedTasks(It.IsAny<long>())).ThrowsAsync(new TmException("Metodo so pode ser acessado por gerentes.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.GetAverageCompletedTasks(userId);
 
             // Assert
             ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
+
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            ReportsResponse response = JsonConvert.DeserializeObject<ReportsResponse>(jsonResultValue);
+
             Assert.Equal((int)HttpStatusCode.BadRequest, objectResult.StatusCode);
+            Assert.Equal(400, objectResult.StatusCode);
+            Assert.Equal("Metodo so pode ser acessado por gerentes.", response.Message);
         }
 
         [Fact]
@@ -68,73 +75,53 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long userId = 1;
-            User user = new User { Id = userId, Type = UserType.Manager }; 
 
-            List<TaskItem> taskItems = new List<TaskItem>
+            ReportsResponseDTO responseDTO = new ReportsResponseDTO
             {
-                new TaskItem
-                {
-                    Status = TaskItemStatus.Completed, 
-                    UpdatedAt = DateTime.Now
-                },
-                new TaskItem
-                {
-                    Status = TaskItemStatus.Completed, 
-                    UpdatedAt = DateTime.Now.AddDays(-29)
-                },
-                new TaskItem
-                {
-                    Status = TaskItemStatus.InProgress, 
-                    UpdatedAt = DateTime.Now.AddDays(-5) 
-                },
-                new TaskItem
-                {
-                    Status = TaskItemStatus.Completed,
-                    UpdatedAt = DateTime.Now.AddDays(-31)
-                }
+                Success = true,
+                AverageTasksByUser = 0.066666666666666666,
+                StatusCode = HttpStatusCode.OK,
+                TaskCompleted = new List<TaskItem> { new TaskItem() }
             };
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync(user);
-            _taskItemRepoMock.Setup(repo =>
-                repo.GetCompletedTasksByUserAndDateRange(userId, It.IsAny<DateTime>())
-            ).ReturnsAsync(taskItems.Where(t =>
-                t.Status == TaskItemStatus.Completed && t.UpdatedAt >= DateTime.Now.AddDays(-30)).ToList());
-
+            _reportsService.Setup(service => service.GetAverageCompletedTasks(userId)).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.GetAverageCompletedTasks(userId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
-            ReportsResponse data = JsonConvert.DeserializeObject<ReportsResponse>(jsonResultValue);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            ReportsResponse response = JsonConvert.DeserializeObject<ReportsResponse>(jsonResultValue);
 
-            Assert.Equal(2.0 / 30, data.AverageTasksByUser);
+            Assert.True(response.Success);
+            Assert.Equal(2.0 / 30, response.AverageTasksByUser);
         }
 
         [Fact]
         public async Task GetAverageCompletedTasks_WhenUserIsManagerAndHasNoCompletedTasks_ReturnsOkWithZeroAverage()
         {
             // Arrange
-            long userId = 1L;
-            User user = new User { Id = userId, Type = UserType.Manager }; 
+            long userId = 1;
 
-            List<TaskItem> taskItems = new List<TaskItem>(); 
+            ReportsResponseDTO responseDTO = new ReportsResponseDTO
+            {
+                Success = true,
+                AverageTasksByUser = 0.0,
+                StatusCode = HttpStatusCode.OK,
+                TaskCompleted = null
+            };
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync(user);
-
-            _taskItemRepoMock.Setup(repo =>
-                repo.GetCompletedTasksByUserAndDateRange(userId, It.IsAny<DateTime>())
-            ).ReturnsAsync(taskItems);
+            _reportsService.Setup(service => service.GetAverageCompletedTasks(userId)).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.GetAverageCompletedTasks(userId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
-            ReportsResponse data = JsonConvert.DeserializeObject<ReportsResponse>(jsonResultValue);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            ReportsResponse response = JsonConvert.DeserializeObject<ReportsResponse>(jsonResultValue);
 
-            Assert.True(data.Success);
-            Assert.Equal(0.0, data.AverageTasksByUser);
+            Assert.True(response.Success);
+            Assert.Equal(0.0, response.AverageTasksByUser);
         }
 
         [Fact]
@@ -143,15 +130,20 @@ namespace TaskManager.Tests.Controllers
             // Arrange
             long userId = 1;
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync((User)null);
+            _reportsService.Setup(service => service.GetAverageCompletedTasks(It.IsAny<long>())).ThrowsAsync(new TmException("Usuário inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.GetAverageCompletedTasks(userId);
 
             // Assert
             ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
+
 
             Assert.Equal((int)HttpStatusCode.BadRequest, objectResult.StatusCode);
+            Assert.Equal(400, objectResult.StatusCode);
+            Assert.Equal("Usuário inexistente.", response.Message);
         }
 
         [Fact]
@@ -159,17 +151,19 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long userId = 1;
-            User user = new User { Id = userId, Type = UserType.Manager };
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ThrowsAsync(new Exception("Erro inesperado"));
+            _reportsService.Setup(service => service.GetAverageCompletedTasks(It.IsAny<long>())).ThrowsAsync(new Exception("Erro inesperado."));
 
             // Act
             IActionResult result = await _controller.GetAverageCompletedTasks(userId);
 
             // Assert
             ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
-            Assert.Equal((int)HttpStatusCode.InternalServerError, objectResult.StatusCode);
+            Assert.Equal(500, objectResult.StatusCode);
+            Assert.Contains("Houve um erro no sistema: Erro inesperado", response.Message);
         }
     }
 }

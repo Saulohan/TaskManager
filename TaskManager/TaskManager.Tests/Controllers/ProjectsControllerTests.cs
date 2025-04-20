@@ -15,16 +15,16 @@ using TaskManager.Tests.Domain.Responses;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Domain.DTOs;
 using Newtonsoft.Json;
+using TaskManager.API.Services.Interfaces;
+using TaskManager.Application.Services;
+using TaskManager.Domain.Exceptions;
 
 namespace TaskManager.Tests.Controllers
 {
     public class ProjectsControllerTests
     {
         private readonly ProjectsController _controller;
-        private readonly TaskManagerContext _context;
-        private readonly Mock<ProjectRepository> _projectRepoMock;
-        private readonly Mock<TaskItemRepository> _taskItemRepoMock;
-        private readonly Mock<UserRepository> _userRepoMock;
+        private readonly Mock<IProjectsService> _projectsServiceMock;
 
         public ProjectsControllerTests()
         {
@@ -32,17 +32,10 @@ namespace TaskManager.Tests.Controllers
                 .UseInMemoryDatabase("TestDatabase")
                 .Options;
 
-            _context = new TaskManagerContext(options);
-
-            _projectRepoMock = new Mock<ProjectRepository>(_context);
-            _taskItemRepoMock = new Mock<TaskItemRepository>(_context);
-            _userRepoMock = new Mock<UserRepository>(_context);
+            _projectsServiceMock = new Mock<IProjectsService>();
 
             _controller = new ProjectsController(
-                _context,
-                _projectRepoMock.Object,
-                _taskItemRepoMock.Object,
-                _userRepoMock.Object
+                _projectsServiceMock.Object
             );
         }
 
@@ -51,7 +44,8 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             List<Project> projects = new List<Project>();
-            _projectRepoMock.Setup(repo => repo.GetAllProjects()).ReturnsAsync(projects);
+
+            _projectsServiceMock.Setup(service => service.GetAllProjects()).ThrowsAsync(new TmException("Nenhum projeto encontrado.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.GetAllProjects();
@@ -59,7 +53,11 @@ namespace TaskManager.Tests.Controllers
             // Assert
             ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
 
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
+            ProjectsResponse response = JsonConvert.DeserializeObject<ProjectsResponse>(jsonResultValue);
+
             Assert.Equal((int)HttpStatusCode.BadRequest, objectResult.StatusCode);
+            Assert.Equal("Nenhum projeto encontrado.", response.Message);
         }
 
         [Fact]
@@ -67,19 +65,25 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             User user = new User { Id = 1, Type = UserType.Manager };
-            List<Project> projects = new List<Project>
+
+            ProjectResponseDTO responseDTO = new ProjectResponseDTO
             {
-                new Project("Project 1", "Description 1", DateTime.Now.AddDays(10), user),
-                new Project("Project 2", "Description 2", DateTime.Now.AddDays(15), user)
+                Success = true,
+                Message = "Projetos recuperados com sucesso.",
+                StatusCode = HttpStatusCode.OK,
+                Projects = new List<Project> {            
+                    new Project("Project 1", "Description 1", DateTime.Now.AddDays(10), user),
+                    new Project("Project 2", "Description 2", DateTime.Now.AddDays(15), user)
+                }
             };
 
-            _projectRepoMock.Setup(repo => repo.GetAllProjects()).ReturnsAsync(projects);
+            _projectsServiceMock.Setup(service => service.GetAllProjects()).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.GetAllProjects();
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             ProjectsResponse response = JsonConvert.DeserializeObject<ProjectsResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -100,16 +104,24 @@ namespace TaskManager.Tests.Controllers
                 DueDate = DateTime.Now.AddDays(10).ToString()
             };
 
-            User user = new User { Id = userId, Type = UserType.Manager };
+            ProjectResponseDTO responseDTO = new ProjectResponseDTO
+            {
+                Success = true,
+                Message = "Projeto criado com sucesso.",
+                StatusCode = HttpStatusCode.OK,
+                Projects = new List<Project> {
+                    new Project(),
+                    new Project()
+                }
+            };
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync(user);
-            _projectRepoMock.Setup(repo => repo.Save(It.IsAny<Project>())).Returns(Task.CompletedTask);
+            _projectsServiceMock.Setup(service => service.CreateProject(It.IsAny<CreateProjectDTO>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.CreateProject(createProjectDTO);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             ProjectsResponse response = JsonConvert.DeserializeObject<ProjectsResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -129,7 +141,7 @@ namespace TaskManager.Tests.Controllers
                 DueDate = DateTime.Now.AddDays(10).ToString()
             };
 
-            _userRepoMock.Setup(repo => repo.GetUserById(userId)).ReturnsAsync((User)null);
+            _projectsServiceMock.Setup(service => service.CreateProject(It.IsAny<CreateProjectDTO>())).ThrowsAsync(new TmException("Usuário inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.CreateProject(createProjectDTO);
@@ -149,18 +161,24 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            Project project = new Project("Project 1", "Description", DateTime.Now.AddDays(10), new User { Id = 1 });
-            List<TaskItem> taskItems = new List<TaskItem>();
+            ProjectResponseDTO responseDTO = new ProjectResponseDTO
+            {
+                Success = true,
+                Message = "Projeto excluído com sucesso.",
+                StatusCode = HttpStatusCode.OK,
+                Projects = new List<Project> {
+                    new Project(),
+                    new Project()
+                }
+            };
 
-            _projectRepoMock.Setup(repo => repo.GetProjectById(projectId)).ReturnsAsync(project);
-            _taskItemRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ReturnsAsync(taskItems);
-            _projectRepoMock.Setup(repo => repo.DeleteProject(project)).Returns(Task.CompletedTask);
+            _projectsServiceMock.Setup(service => service.DeleteProject(It.IsAny<long>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.DeleteProject(projectId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             ProjectsResponse response = JsonConvert.DeserializeObject<ProjectsResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -172,7 +190,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            _projectRepoMock.Setup(repo => repo.GetProjectById(projectId)).ReturnsAsync((Project)null);
+            _projectsServiceMock.Setup(service => service.DeleteProject(It.IsAny<long>())).ThrowsAsync(new TmException("Projeto inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.DeleteProject(projectId);
@@ -192,14 +210,8 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            Project project = new Project("Project 1", "Description", DateTime.Now.AddDays(10), new User { Id = 1 });
-            List<TaskItem> taskItems = new List<TaskItem>
-            {
-                new TaskItem { Status = TaskItemStatus.InProgress, UpdatedAt = DateTime.Now }
-            };
 
-            _projectRepoMock.Setup(repo => repo.GetProjectById(projectId)).ReturnsAsync(project);
-            _taskItemRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ReturnsAsync(taskItems);
+            _projectsServiceMock.Setup(service => service.DeleteProject(It.IsAny<long>())).ThrowsAsync(new TmException("Não é possivel remover um projeto com tarefas ativas, finalize as tarefas pendentes antes da remoção.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.DeleteProject(projectId);
@@ -219,7 +231,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            _projectRepoMock.Setup(repo => repo.GetProjectById(projectId)).ThrowsAsync(new Exception("Erro inesperado"));
+            _projectsServiceMock.Setup(service => service.DeleteProject(It.IsAny<long>())).ThrowsAsync(new Exception("Erro inesperado."));
 
             // Act
             IActionResult result = await _controller.DeleteProject(projectId);
@@ -231,7 +243,7 @@ namespace TaskManager.Tests.Controllers
             ProjectsResponse response = JsonConvert.DeserializeObject<ProjectsResponse>(jsonResultValue);
 
             Assert.Equal((int)HttpStatusCode.InternalServerError, objectResult.StatusCode);
-            Assert.Equal("Erro ao tentar excluir o projeto: Erro inesperado", response.Message);
+            Assert.Equal("Erro ao tentar excluir o projeto: Erro inesperado.", response.Message);
         }
     }
 }

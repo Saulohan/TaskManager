@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using TaskManager.Domain.Entities;
+using TaskManager.Application.Services;
+using TaskManager.API.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +27,11 @@ builder.Services.AddScoped<TaskItemHistoricRepository>();
 builder.Services.AddScoped<TaskCommentRepository>();
 builder.Services.AddScoped<ProjectRepository>();
 builder.Services.AddScoped<UserRepository>();
+
+
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<IReportsService, ReportsService>();
+builder.Services.AddScoped<IProjectsService, ProjectsService>();
 
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 

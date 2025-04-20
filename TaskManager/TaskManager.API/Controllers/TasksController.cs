@@ -9,6 +9,8 @@ using TaskManagerAPI.Utils;
 using Project = TaskManager.Domain.Entities.Project;
 using TaskManager.Domain.Exceptions;
 using System.Net;
+using TaskManager.API.Services.Interfaces;
+using Microsoft.Build.Evaluation;
 
 
 namespace TaskManager.API.Controllers
@@ -18,23 +20,11 @@ namespace TaskManager.API.Controllers
     [Route("[controller]")]
     public class TasksController : ControllerBase
     {
-        private readonly TaskManagerContext _context;
-        private readonly TaskItemRepository _taskItemRepository;
-        private readonly TaskItemHistoricRepository _taskItemHistoricRepository;
-        private readonly TaskCommentRepository _taskCommentRepository;
-        private readonly ProjectRepository _projectRepository;
-        private readonly UserRepository _userRepository;
-        private readonly ConfigHelper _configHelper;
+        private readonly ITaskService _taskService;
 
-        public TasksController(TaskManagerContext context, TaskItemRepository taskItemRepository, ProjectRepository projectRepository, TaskItemHistoricRepository taskItemHistoricRepository, TaskCommentRepository taskCommentRepository, UserRepository userRepository, ConfigHelper configHelper)
+        public TasksController(ITaskService taskService)
         {
-            _context = context;
-            _taskItemRepository = taskItemRepository;
-            _taskItemHistoricRepository = taskItemHistoricRepository;
-            _taskCommentRepository = taskCommentRepository;
-            _projectRepository = projectRepository;
-            _userRepository = userRepository;
-            _configHelper = configHelper;
+            _taskService = taskService;
         }
 
         // GET /projects/{id}/tasks
@@ -43,12 +33,14 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                List<TaskItem> taskItems = await _taskItemRepository.GetAllTasksByProjectId(projectId);
+                TaskResponseDTO result = await _taskService.GetAllTasksByProject(projectId);
 
-                if (taskItems is null || !taskItems.Any())
-                    throw new TmException(message: "Nenhuma tarefa encontrada.", statusCode: HttpStatusCode.BadRequest);
-
-                return Ok(new { Success = true, message = "Tarefas recuperados com sucesso.", taskItems });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message,
+                    TaskItems = result.TaskItems
+                });
             }
             catch (TmException ex)
             {
@@ -68,22 +60,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
+                TaskResponseDTO result = await _taskService.CreateTask(createTaskDTO);
 
-                Project project = await _projectRepository.GetProjectById(createTaskDTO.ProjectId.Value)
-                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
-
-                int countTasksByProject = await _taskItemRepository.CountTaskItemsByProjectId(project.Id.Value);
-
-                if (countTasksByProject >= _configHelper.MaxTasksPerProject) 
-                    throw new TmException(message: "Número máximo de tarefas por projeto atingido.", statusCode: HttpStatusCode.BadRequest);
-
-                TaskItem taskItem = TaskItemMapper.CreateTaskDTOToTaskItem(createTaskDTO, project);
-                TaskItemHistoric taskItemHistoric = TaskItemHistoricMapper.TaskItemToTaskItemHistoric(taskItem, project.User);
-
-                await _taskItemRepository.Save(taskItem);
-                await _taskItemHistoricRepository.Save(taskItemHistoric);
-
-                return Ok(new { Success = true, message = "Tarefa criada com sucesso." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {
@@ -103,22 +86,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                TaskItem taskItem = await _taskItemRepository.GetTaskItemById(updateTaskDTO.TaskItemId.Value)
-                    ?? throw new TmException(message: "Tarefa inexistente.", statusCode: HttpStatusCode.BadRequest);
+                TaskResponseDTO result = await _taskService.UpdateTask(updateTaskDTO);
 
-                if (taskItem.Status == updateTaskDTO.Status && taskItem.Description == updateTaskDTO.Description)
-                    throw new TmException(message: "Nenhuma alteração detectada. Modifique algum campo para atualizar a tarefa.", statusCode: HttpStatusCode.BadRequest);
-
-                Project project = await _projectRepository.GetProjectById(taskItem.Project.Id.Value)
-                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
-
-                taskItem = TaskItemMapper.UpdateTaskDTOToTaskItem(updateTaskDTO, taskItem, project);
-                TaskItemHistoric taskItemHistoric = TaskItemHistoricMapper.TaskItemToTaskItemHistoric(taskItem, project.User);
-
-                await _taskItemRepository.Save(taskItem);
-                await _taskItemHistoricRepository.Save(taskItemHistoric);
-
-                return Ok(new { Success = true, message = "Tarefa atualizada com sucesso." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {
@@ -138,22 +112,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                TaskItem taskItem = await _taskItemRepository.GetTaskItemById(taskItemId)
-                    ?? throw new TmException(message: "Não é possivel deletarmos tarefa pois a mesma nunca foi criada.", statusCode: HttpStatusCode.BadRequest);
+                TaskResponseDTO result = await _taskService.DeleteTaskItem(taskItemId);
 
-                Project project = await _projectRepository.GetProjectById(taskItem.Project.Id.Value)
-                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
-
-                taskItem.UpdatedAt = DateTime.Now;
-                taskItem.DeletedAt = DateTime.Now;
-                taskItem.UpdatedBy = project.User.Id.Value;
-
-                TaskItemHistoric taskItemHistoric = TaskItemHistoricMapper.TaskItemToTaskItemHistoric(taskItem, project.User);
-
-                await _taskItemRepository.DeleteTaskItem(taskItem);
-                await _taskItemHistoricRepository.Save(taskItemHistoric);
-
-                return Ok(new { Success = true, message = "Tarefa deletada com sucesso." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {
@@ -172,24 +137,13 @@ namespace TaskManager.API.Controllers
         {
             try
             {
-                TaskItem taskItem = await _taskItemRepository.GetTaskItemById(createTaskCommentDTO.TaskItemId.Value)
-                    ?? throw new TmException(message: "Não é possivel criar um comentário para uma tarefa inexistente.", statusCode: HttpStatusCode.BadRequest);
+                TaskResponseDTO result = await _taskService.CreateTaskComments(createTaskCommentDTO);
 
-                Project project = await _projectRepository.GetProjectById(taskItem.Project.Id.Value)
-                    ?? throw new TmException(message: "Projeto inexistente.", statusCode: HttpStatusCode.BadRequest);
-
-                TaskComment taskComment = TaskCommentMapper.MapperTaskComment(createTaskCommentDTO, taskItem, project.User);
-
-                List<TaskComment> taskCommentToHistoric = await _taskCommentRepository.GetAllTaskCommentByTaskItemId(taskItem.Id.Value) ?? new List<TaskComment>();
-                
-                await _taskCommentRepository.Save(taskComment);
-                taskCommentToHistoric.Add(taskComment);
-
-                TaskItemHistoric taskItemHistoric = TaskItemHistoricMapper.MapperCommentsToTaskItemHistoric(taskItem, taskCommentToHistoric, project.User);
-
-                await _taskItemHistoricRepository.Save(taskItemHistoric);
-
-                return Ok(new { Success = true, message = "Comentário inserido com sucesso na Tarefa." });
+                return StatusCode(Convert.ToInt32(result.StatusCode), new
+                {
+                    Success = result.Success,
+                    Message = result.Message
+                });
             }
             catch (TmException ex)
             {

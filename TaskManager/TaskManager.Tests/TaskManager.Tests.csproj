@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -8,6 +8,18 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Config\**" />
+    <Compile Remove="Repositories\**" />
+    <Compile Remove="Utils\**" />
+    <EmbeddedResource Remove="Config\**" />
+    <EmbeddedResource Remove="Repositories\**" />
+    <EmbeddedResource Remove="Utils\**" />
+    <None Remove="Config\**" />
+    <None Remove="Repositories\**" />
+    <None Remove="Utils\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
@@ -20,12 +32,6 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Config\" />
-    <Folder Include="Utils\" />
-    <Folder Include="Repositories\" />
   </ItemGroup>
 
   <ItemGroup>

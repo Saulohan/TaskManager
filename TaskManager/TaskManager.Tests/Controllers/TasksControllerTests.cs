@@ -16,19 +16,15 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using TaskManager.Tests.Domain.Responses;
 using TaskManager.Domain.Exceptions;
+using TaskManager.API.Services.Interfaces;
 
 namespace TaskManager.Tests.Controllers
 {
     public class TasksControllerTests
     {
         private readonly TasksController _controller;
-        private readonly TaskManagerContext _context;
-        private readonly Mock<TaskItemRepository> _taskRepoMock;
-        private readonly Mock<TaskItemHistoricRepository> _taskHistoricRepoMock;
-        private readonly Mock<TaskCommentRepository> _taskCommentRepoMock;
-        private readonly Mock<ProjectRepository> _projectRepoMock;
-        private readonly Mock<UserRepository> _userRepoMock;
-        private readonly Mock<ConfigHelper> _configHelperMock;
+
+        private readonly Mock<ITaskService> _taskServiceMock;
 
         public TasksControllerTests()
         {
@@ -36,24 +32,11 @@ namespace TaskManager.Tests.Controllers
                 .UseInMemoryDatabase("TestDatabase")
                 .Options;
 
-            _context = new TaskManagerContext(options);
-            
-            _taskRepoMock = new Mock<TaskItemRepository>(_context);
-            _taskHistoricRepoMock = new Mock<TaskItemHistoricRepository>(_context);
-            _taskCommentRepoMock = new Mock<TaskCommentRepository>(_context);
-            _projectRepoMock = new Mock<ProjectRepository>(_context);
-            _userRepoMock = new Mock<UserRepository>(_context);
-            _configHelperMock = new Mock<ConfigHelper>();
-            _configHelperMock.Setup(x => x.NumberOfDaysToReport).Returns(30);
+            // Mock do ITaskService
+            _taskServiceMock = new Mock<ITaskService>();
 
             _controller = new TasksController(
-                _context,
-                _taskRepoMock.Object,
-                _projectRepoMock.Object,
-                _taskHistoricRepoMock.Object,
-                _taskCommentRepoMock.Object,
-                _userRepoMock.Object,
-                _configHelperMock.Object
+                _taskServiceMock.Object
             );
         }
 
@@ -68,33 +51,41 @@ namespace TaskManager.Tests.Controllers
                 {
                     Id = 1,
                     Title = "Task 1",
-                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),  // Agora passando todos os parâmetros necessários
+                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),
                     DueDate = DateTime.Now.AddDays(5),
                     TaskItemPriority = TaskItemPriority.Medium,
                     Status = TaskItemStatus.InProgress
                 },
                 new TaskItem
                 {
-                    Id = 2,  
-                    Title = "Task 2",  
-                    Project = new Project("Project Title 2", "Project Description 2", DateTime.Now.AddDays(5), new User { Id = 2, Type = UserType.Manager }),  // Alterando o ID do usuário para 2 e ajustando o título e descrição do projeto
+                    Id = 2,
+                    Title = "Task 2",
+                    Project = new Project("Project Title 2", "Project Description 2", DateTime.Now.AddDays(5), new User { Id = 2, Type = UserType.Manager }),
                     DueDate = DateTime.Now.AddDays(5),
                     TaskItemPriority = TaskItemPriority.Medium,
                     Status = TaskItemStatus.InProgress
                 }
             };
 
-            _taskRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ReturnsAsync(taskItems);
+            TaskResponseDTO responseDTO = new TaskResponseDTO
+            {
+                Success = true,
+                StatusCode = HttpStatusCode.OK,
+                Message = "Tarefas recuperadas com sucesso.",
+                TaskItems = taskItems
+            };
+
+            _taskServiceMock.Setup(service => service.GetAllTasksByProject(projectId)).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.GetAllTasksByProject(projectId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
-            Assert.Equal("Tarefas recuperados com sucesso.", response.Message.ToString());
+            Assert.Equal("Tarefas recuperadas com sucesso.", response.Message.ToString());
             Assert.Equal(2, response.TaskItems.Count);
         }
 
@@ -103,9 +94,9 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            List<TaskItem> taskItems = new List<TaskItem>();
 
-            _taskRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ReturnsAsync(taskItems);
+            _taskServiceMock.Setup(service => service.GetAllTasksByProject(projectId))
+                           .ThrowsAsync(new TmException("Nenhuma tarefa encontrada.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.GetAllTasksByProject(projectId);
@@ -116,7 +107,7 @@ namespace TaskManager.Tests.Controllers
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.Equal((int)HttpStatusCode.BadRequest, objectResult.StatusCode);
-            Assert.Equal("Nenhuma tarefa encontrada.", response.Message.ToString());
+            Assert.Equal("Nenhuma tarefa encontrada.", response.Message);
         }
 
         [Fact]
@@ -124,7 +115,9 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long projectId = 1;
-            _taskRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ThrowsAsync(new Exception("Erro inesperado"));
+
+            _taskServiceMock.Setup(service => service.GetAllTasksByProject(projectId))
+                           .ThrowsAsync(new Exception("Erro inesperado"));
 
             // Act
             IActionResult result = await _controller.GetAllTasksByProject(projectId);
@@ -149,33 +142,41 @@ namespace TaskManager.Tests.Controllers
                 {
                     Id = 1,
                     Title = "Task 1",
-                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),  // Agora passando todos os parâmetros necessários
+                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),
                     DueDate = DateTime.Now.AddDays(5),
                     TaskItemPriority = TaskItemPriority.Medium,
                     Status = TaskItemStatus.Completed
                 },
                 new TaskItem
                 {
-                    Id = 1,
-                    Title = "Task 1",
-                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),  // Agora passando todos os parâmetros necessários
+                    Id = 2,
+                    Title = "Task 2",
+                    Project = new Project("Project Title", "Project Description", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }),
                     DueDate = DateTime.Now.AddDays(5),
                     TaskItemPriority = TaskItemPriority.Medium,
                     Status = TaskItemStatus.InProgress
-                },
+                }
             };
 
-            _taskRepoMock.Setup(repo => repo.GetAllTasksByProjectId(projectId)).ReturnsAsync(taskItems);
+            TaskResponseDTO responseDTO = new TaskResponseDTO
+            {
+                Success = true,
+                StatusCode = HttpStatusCode.OK,
+                Message = "Tarefas recuperadas com sucesso.",
+                TaskItems = taskItems
+            };
+
+            _taskServiceMock.Setup(service => service.GetAllTasksByProject(projectId)).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.GetAllTasksByProject(projectId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
-            Assert.Equal("Tarefas recuperados com sucesso.", response.Message.ToString());
+            Assert.Equal("Tarefas recuperadas com sucesso.", response.Message.ToString());
             Assert.Equal(2, response.TaskItems.Count);
         }
 
@@ -192,15 +193,20 @@ namespace TaskManager.Tests.Controllers
                 TaskItemPriority = TaskItemPriority.Medium 
             };
 
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(10), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-            _projectRepoMock.Setup(repo => repo.GetProjectById(It.IsAny<long>())).ReturnsAsync(project);
-            _taskRepoMock.Setup(repo => repo.CountTaskItemsByProjectId(It.IsAny<long>())).ReturnsAsync(0); 
+            TaskResponseDTO responseDTO = new TaskResponseDTO
+            {
+                Success = true,
+                Message = "Tarefa criada com sucesso.",
+                StatusCode = HttpStatusCode.OK
+            };
+
+            _taskServiceMock.Setup(service => service.CreateTask(It.IsAny<CreateTaskDTO>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.CreateTask(createTaskDTO);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -219,7 +225,7 @@ namespace TaskManager.Tests.Controllers
                 DueDate = DateTime.Now.AddDays(5).ToString("yyyy-MM-dd"),
                 TaskItemPriority = TaskItemPriority.Medium
             };
-            _projectRepoMock.Setup(repo => repo.GetProjectById(It.IsAny<long>())).ReturnsAsync((Project)null); // Projeto não encontrado
+            _taskServiceMock.Setup(service => service.CreateTask(It.IsAny<CreateTaskDTO>())).ThrowsAsync(new TmException("Projeto inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.CreateTask(createTaskDTO);
@@ -247,10 +253,7 @@ namespace TaskManager.Tests.Controllers
                 TaskItemPriority = TaskItemPriority.Medium
             };
 
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(10), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-            
-            _projectRepoMock.Setup(repo => repo.GetProjectById(It.IsAny<long>())).ReturnsAsync(project);
-            _taskRepoMock.Setup(repo => repo.CountTaskItemsByProjectId(It.IsAny<long>())).ReturnsAsync(20); 
+            _taskServiceMock.Setup(service => service.CreateTask(It.IsAny<CreateTaskDTO>())).ThrowsAsync(new TmException("Número máximo de tarefas por projeto atingido.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.CreateTask(createTaskDTO);
@@ -278,12 +281,7 @@ namespace TaskManager.Tests.Controllers
                 TaskItemPriority = TaskItemPriority.Medium
             };
 
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(10), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-
-            _projectRepoMock.Setup(repo => repo.GetProjectById(It.IsAny<long>())).ReturnsAsync(project);
-            _taskRepoMock.Setup(repo => repo.CountTaskItemsByProjectId(It.IsAny<long>())).ReturnsAsync(0);
-
-            _taskRepoMock.Setup(repo => repo.Save(It.IsAny<TaskItem>())).ThrowsAsync(new Exception("Erro inesperado"));
+            _taskServiceMock.Setup(service => service.CreateTask(It.IsAny<CreateTaskDTO>())).ThrowsAsync(new Exception("Erro inesperado"));
 
             // Act
             IActionResult result = await _controller.CreateTask(createTaskDTO);
@@ -308,25 +306,20 @@ namespace TaskManager.Tests.Controllers
                 Description = "Updated Description",
                 Status = TaskItemStatus.Completed
             };
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now, new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
 
-            TaskItem existingTask = new TaskItem
+            TaskResponseDTO responseDTO = new TaskResponseDTO
             {
-                Id = 1,
-                Description = "Old Description",
-                Status = TaskItemStatus.InProgress,
-                Project = project
+                Success = true,
+                Message = "Tarefa atualizada com sucesso.",
+                StatusCode = HttpStatusCode.OK
             };
 
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(1)).ReturnsAsync(existingTask);
-            _projectRepoMock.Setup(repo => repo.GetProjectById(1)).ReturnsAsync(project);
-            _taskRepoMock.Setup(repo => repo.Save(It.IsAny<TaskItem>())).Returns(Task.CompletedTask);
-            _taskHistoricRepoMock.Setup(repo => repo.Save(It.IsAny<TaskItemHistoric>())).Returns(Task.CompletedTask);
+            _taskServiceMock.Setup(service => service.UpdateTask(It.IsAny<UpdateTaskDTO>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.UpdateTask(updateTaskDTO);
 
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -339,7 +332,7 @@ namespace TaskManager.Tests.Controllers
             // Arrange
             UpdateTaskDTO updateTaskDTO = new UpdateTaskDTO { TaskItemId = 1 };
 
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(1)).ReturnsAsync((TaskItem)null);
+            _taskServiceMock.Setup(service => service.UpdateTask(It.IsAny<UpdateTaskDTO>())).ThrowsAsync(new TmException("Tarefa inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.UpdateTask(updateTaskDTO);
@@ -365,17 +358,7 @@ namespace TaskManager.Tests.Controllers
                 Status = TaskItemStatus.InProgress
             };
 
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now, new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-
-            TaskItem existingTask = new TaskItem
-            {
-                Id = 1,
-                Description = "Same Description",
-                Status = TaskItemStatus.InProgress,
-                Project = project
-            };
-
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(1)).ReturnsAsync(existingTask);
+            _taskServiceMock.Setup(service => service.UpdateTask(It.IsAny<UpdateTaskDTO>())).ThrowsAsync(new TmException("Nenhuma alteração detectada. Modifique algum campo para atualizar a tarefa.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.UpdateTask(updateTaskDTO);
@@ -401,18 +384,7 @@ namespace TaskManager.Tests.Controllers
                 Status = TaskItemStatus.Completed
             };
 
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now, new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-            
-            TaskItem taskItem = new TaskItem
-            {
-                Id = 1,
-                Description = "Old Desc",
-                Status = TaskItemStatus.InProgress,
-                Project = project
-            };
-
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(1)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(repo => repo.GetProjectById(1)).ReturnsAsync((Project)null);
+            _taskServiceMock.Setup(service => service.UpdateTask(It.IsAny<UpdateTaskDTO>())).ThrowsAsync(new TmException("Projeto inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.UpdateTask(updateTaskDTO);
@@ -432,7 +404,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             UpdateTaskDTO updateTaskDTO = new UpdateTaskDTO { TaskItemId = 1 };
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(1)).ThrowsAsync(new Exception("Algo deu errado"));
+            _taskServiceMock.Setup(service => service.UpdateTask(It.IsAny<UpdateTaskDTO>())).ThrowsAsync(new Exception("Algo deu errado."));
 
             // Act
             IActionResult result = await _controller.UpdateTask(updateTaskDTO);
@@ -452,29 +424,21 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
 
-            TaskItem taskItem = new TaskItem
+            TaskResponseDTO responseDTO = new TaskResponseDTO
             {
-                Id = taskItemId,
-                Title = "Task 1",
-                Project = project,
-                CreatedAt = DateTime.Now.AddDays(-1),
-                UpdatedAt = DateTime.Now.AddDays(-1),
-                TaskItemPriority = TaskItemPriority.Medium,
-                Status = TaskItemStatus.InProgress
+                Success = true,
+                Message = "Tarefa deletada com sucesso.",
+                StatusCode = HttpStatusCode.OK
             };
 
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(taskItemId)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(repo => repo.GetProjectById(project.Id.Value)).ReturnsAsync(project);
-            _taskRepoMock.Setup(repo => repo.DeleteTaskItem(It.IsAny<TaskItem>())).Returns(Task.CompletedTask);
-            _taskHistoricRepoMock.Setup(repo => repo.Save(It.IsAny<TaskItemHistoric>())).Returns(Task.CompletedTask);
+            _taskServiceMock.Setup(service => service.DeleteTaskItem(taskItemId)).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.DeleteTaskItem(taskItemId);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -486,7 +450,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(taskItemId)).ReturnsAsync((TaskItem)null);
+            _taskServiceMock.Setup(service => service.DeleteTaskItem(It.IsAny<long>())).ThrowsAsync(new TmException("Não é possivel deletarmos tarefa pois a mesma nunca foi criada.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.DeleteTaskItem(taskItemId);
@@ -506,16 +470,8 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            Project project = null;
-            TaskItem taskItem = new TaskItem
-            {
-                Id = taskItemId,
-                Title = "Task 1",
-                Project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }) { Id = 1 }
-            };
 
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(taskItemId)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(repo => repo.GetProjectById(taskItem.Project.Id.Value)).ReturnsAsync(project);
+            _taskServiceMock.Setup(service => service.DeleteTaskItem(It.IsAny<long>())).ThrowsAsync(new TmException("Projeto inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.DeleteTaskItem(taskItemId);
@@ -535,7 +491,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            _taskRepoMock.Setup(repo => repo.GetTaskItemById(taskItemId)).ThrowsAsync(new Exception("Erro inesperado"));
+            _taskServiceMock.Setup(service => service.DeleteTaskItem(It.IsAny<long>())).ThrowsAsync(new Exception("Erro inesperado."));
 
             // Act
             IActionResult result = await _controller.DeleteTaskItem(taskItemId);
@@ -555,30 +511,23 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
 
-            TaskItem taskItem = new TaskItem
+            TaskResponseDTO responseDTO = new TaskResponseDTO
             {
-                Id = taskItemId,
-                Title = "Task 1",
-                Project = project,
-                CreatedAt = DateTime.Now.AddDays(-1),
-                UpdatedAt = DateTime.Now.AddDays(-1),
-                TaskItemPriority = TaskItemPriority.Medium,
-                Status = TaskItemStatus.InProgress
+                Success = true,
+                Message = "Comentário inserido com sucesso na Tarefa.",
+                StatusCode = HttpStatusCode.OK
             };
 
             CreateTaskCommentDTO createTaskCommentDTO = new CreateTaskCommentDTO { TaskItemId = taskItemId, Content = "First Comment!" };
 
-            _taskRepoMock.Setup(r => r.GetTaskItemById(taskItemId)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(r => r.GetProjectById(project.Id.Value)).ReturnsAsync(project);
-            _taskCommentRepoMock.Setup(r => r.GetAllTaskCommentByTaskItemId(taskItemId)).ReturnsAsync(new List<TaskComment>());
+            _taskServiceMock.Setup(service => service.CreateTaskComments(It.IsAny<CreateTaskCommentDTO>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.CreateTaskComments(createTaskCommentDTO);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -590,7 +539,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             CreateTaskCommentDTO createTaskCommentDTO = new CreateTaskCommentDTO { TaskItemId = 1, Content = "First Comment!" };
-            _taskRepoMock.Setup(r => r.GetTaskItemById(createTaskCommentDTO.TaskItemId.Value)).ReturnsAsync((TaskItem)null);
+            _taskServiceMock.Setup(service => service.CreateTaskComments(It.IsAny<CreateTaskCommentDTO>())).ThrowsAsync(new TmException("Não é possivel criar um comentário para uma tarefa inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.CreateTaskComments(createTaskCommentDTO);
@@ -610,23 +559,10 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             long taskItemId = 1;
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now.AddDays(5), new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
-
-            TaskItem taskItem = new TaskItem
-            {
-                Id = taskItemId,
-                Title = "Task 1",
-                Project = project,
-                CreatedAt = DateTime.Now.AddDays(-1),
-                UpdatedAt = DateTime.Now.AddDays(-1),
-                TaskItemPriority = TaskItemPriority.Medium,
-                Status = TaskItemStatus.InProgress
-            };
 
             CreateTaskCommentDTO createTaskCommentDTO = new CreateTaskCommentDTO { TaskItemId = taskItemId, Content = "First Comment!" };
 
-            _taskRepoMock.Setup(r => r.GetTaskItemById(taskItemId)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(r => r.GetProjectById(taskItem.Project.Id.Value)).ReturnsAsync((Project)null);
+            _taskServiceMock.Setup(service => service.CreateTaskComments(It.IsAny<CreateTaskCommentDTO>())).ThrowsAsync(new TmException("Projeto inexistente.", HttpStatusCode.BadRequest));
 
             // Act
             IActionResult result = await _controller.CreateTaskComments(createTaskCommentDTO);
@@ -647,30 +583,23 @@ namespace TaskManager.Tests.Controllers
             // Arrange
 
             long taskItemId = 1;
-            Project project = new Project("Project 1", "Description of the project", DateTime.Now, new User { Id = 1, Type = UserType.Manager }) { Id = 1 };
 
-            TaskItem taskItem = new TaskItem
+            TaskResponseDTO responseDTO = new TaskResponseDTO
             {
-                Id = taskItemId,
-                Title = "Task 1",
-                Project = project,
-                CreatedAt = DateTime.Now.AddDays(-1),
-                UpdatedAt = DateTime.Now.AddDays(-1),
-                TaskItemPriority = TaskItemPriority.Medium,
-                Status = TaskItemStatus.InProgress
+                Success = true,
+                Message = "Comentário inserido com sucesso na Tarefa.",
+                StatusCode = HttpStatusCode.OK
             };
 
             CreateTaskCommentDTO createTaskCommentDTO = new CreateTaskCommentDTO { TaskItemId = taskItemId, Content = "First Comment!" };
 
-            _taskRepoMock.Setup(r => r.GetTaskItemById(taskItemId)).ReturnsAsync(taskItem);
-            _projectRepoMock.Setup(r => r.GetProjectById(project.Id.Value)).ReturnsAsync(project);
-            _taskCommentRepoMock.Setup(r => r.GetAllTaskCommentByTaskItemId(taskItemId)).ReturnsAsync((List<TaskComment>)null);
+            _taskServiceMock.Setup(service => service.CreateTaskComments(It.IsAny<CreateTaskCommentDTO>())).ReturnsAsync(responseDTO);
 
             // Act
             IActionResult result = await _controller.CreateTaskComments(createTaskCommentDTO);
 
             // Assert
-            string jsonResultValue = JsonConvert.SerializeObject(((OkObjectResult)result).Value);
+            string jsonResultValue = JsonConvert.SerializeObject(Assert.IsType<ObjectResult>(result).Value);
             TasksResponse response = JsonConvert.DeserializeObject<TasksResponse>(jsonResultValue);
 
             Assert.True(response.Success);
@@ -682,7 +611,7 @@ namespace TaskManager.Tests.Controllers
         {
             // Arrange
             CreateTaskCommentDTO createTaskCommentDTO = new CreateTaskCommentDTO { TaskItemId = 1, Content = "First Comment!" };
-            _taskRepoMock.Setup(r => r.GetTaskItemById(It.IsAny<long>())).ThrowsAsync(new Exception("Erro inesperado"));
+            _taskServiceMock.Setup(service => service.CreateTaskComments(It.IsAny<CreateTaskCommentDTO>())).ThrowsAsync(new Exception("Erro inesperado."));
 
             // Act
             IActionResult result = await _controller.CreateTaskComments(createTaskCommentDTO);
