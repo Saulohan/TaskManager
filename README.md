@@ -12,7 +12,6 @@ O **TaskManager** é uma aplicação para gerenciamento de projetos. Ele permite
 - ![SQL Server](https://img.shields.io/badge/Database-SQL%20Server-lightgrey)
 - ![XUnit](https://img.shields.io/badge/Testes-xUnit%2FMoq-green)
 - ![Docker](https://img.shields.io/badge/Docker-Enabled-blue)
-- ![Docker Compose](https://img.shields.io/badge/Docker--Compose-Yes-blue)
 
 ---
 
@@ -24,18 +23,32 @@ O **TaskManager** é uma aplicação para gerenciamento de projetos. Ele permite
 - [Docker](https://www.docker.com/)
 - [Git](https://git-scm.com/)
 
-### Execução com Docker
+## 🚀 Execução com Docker
+
+Você pode executar a aplicação de duas formas: **construindo localmente** ou **usando a imagem publicada no Docker Hub**.
+
+### 🔨 Opção 1: Construindo a Imagem Localmente
 
 ```bash
 # Clone o repositório
 git clone https://github.com/Saulohan/TaskManager.git
 
-# Acesse a pasta
-cd taskmanager
+# Construa a imagem Docker localmente
+docker build -t saulohan/taskmanager .
 
-# Suba o ambiente com Docker
-docker-compose up --build
+# Execute o container
+docker run -d -p 8080:8080 --name taskmanager saulohan/taskmanager
 ```
+
+### 🔨 Opção 2: Usando Imagem do Docker Hub
+```bash
+# Execute diretamente com a imagem publicada
+docker run -d -p 8080:8080 --name taskmanager saulohan/taskmanager
+```
+
+### 🌐 Acesse a Aplicação
+- Interface Swagger: http://localhost:8080/swagger
+- Testes via Postman: http://localhost:8080
 
 ---
 
