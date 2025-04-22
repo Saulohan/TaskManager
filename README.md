@@ -54,7 +54,7 @@ docker run -d -p 8080:8080 --name taskmanager saulohan/taskmanager
 
 ### 🔍 Refinamento
 
-Durante o refinamento do produto, algumas perguntas importantes que poderiam ser feitas ao Product Owner (PO) para guiar futuras implementações e evoluções:
+Durante o desenvolvimento e testes iniciais, surgiram alguns pontos que acredito serem importantes para alinhar as futuras implementações e evoluções:
 
 1. Haverá controle de prazos com alertas automáticos para tarefas com vencimento próximo?
 2. Deseja-se funcionalidade de notificação (e-mail) quando tarefas forem atribuídas, comentadas ou modificadas?
