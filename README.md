@@ -52,7 +52,7 @@ docker run -d -p 8080:8080 --name taskmanager saulohan/taskmanager
 
 ---
 
-### 🔍 Refinamento
+### 🔍 Perguntas para Refinamento com o PO
 
 Durante o desenvolvimento e testes iniciais, surgiram alguns pontos que acredito serem importantes para alinhar as futuras implementações e evoluções:
 
